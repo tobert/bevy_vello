@@ -183,11 +183,12 @@ pub fn sort_render_items(
             ));
         }
         for (&affine, lottie) in view_ui_lotties.iter() {
+            let pixel_scale = lottie.ui_render_target.scale_factor();
             ui_render_queue.push((
                 lottie.ui_node.stack_index,
                 VelloUiRenderItem::Lottie {
                     affine: *affine,
-                    clip: None, // Lottie extraction doesn't query CalculatedClip yet
+                    clip: scale_clip(lottie.clip, pixel_scale),
                     item: lottie.clone(),
                 },
             ));
@@ -364,6 +365,19 @@ pub fn render_frame(
 
     // Ui Renderables
     for render_item in render_queue.ui.iter() {
+        // Skip fully transparent items before pushing any layers, so that
+        // clip push/pop balance is never a concern for early returns.
+        let skip = match render_item {
+            #[cfg(feature = "lottie")]
+            VelloUiRenderItem::Lottie { item, .. } => item.alpha <= 0.0,
+            #[cfg(feature = "svg")]
+            VelloUiRenderItem::Svg { item, .. } => item.alpha <= 0.0,
+            _ => false,
+        };
+        if skip {
+            continue;
+        }
+
         // Extract the clip rect (pre-scaled to physical pixels in sort_render_items)
         let clip = match render_item {
             VelloUiRenderItem::Scene { clip, .. } => clip,
@@ -404,12 +418,6 @@ pub fn render_frame(
                     },
                 ..
             } => {
-                if *alpha <= 0.0 {
-                    if clip.is_some() {
-                        scene_buffer.pop_layer();
-                    }
-                    continue;
-                }
                 if *alpha < 1.0 {
                     scene_buffer.push_layer(
                         vello::peniko::Fill::NonZero,
@@ -443,12 +451,6 @@ pub fn render_frame(
                 item: ExtractedUiVelloSvg { asset, alpha, .. },
                 ..
             } => {
-                if *alpha <= 0.0 {
-                    if clip.is_some() {
-                        scene_buffer.pop_layer();
-                    }
-                    continue;
-                }
                 if *alpha < 1.0 {
                     scene_buffer.push_layer(
                         vello::peniko::Fill::NonZero,
