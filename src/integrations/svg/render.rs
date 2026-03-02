@@ -27,7 +27,6 @@ pub struct ExtractedUiVelloSvg {
     pub ui_transform: UiGlobalTransform,
     pub alpha: f32,
     pub ui_node: ComputedNode,
-    pub ui_render_target: ComputedUiRenderTargetInfo,
     pub clip: Option<Rect>,
 }
 
@@ -110,7 +109,6 @@ pub fn extract_ui_svg_assets(
             &ComputedNode,
             Option<&RenderLayers>,
             &InheritedVisibility,
-            &ComputedUiRenderTargetInfo,
             Option<&CalculatedClip>,
         )>,
     >,
@@ -129,7 +127,6 @@ pub fn extract_ui_svg_assets(
         ui_node,
         render_layers,
         inherited_visibility,
-        ui_render_target,
         calc_clip,
     ) in query_vectors.iter()
     {
@@ -153,7 +150,6 @@ pub fn extract_ui_svg_assets(
                     asset: asset.to_owned(),
                     ui_transform: *ui_transform,
                     ui_node: *ui_node,
-                    ui_render_target: *ui_render_target,
                     alpha: asset.alpha,
                     clip: calc_clip.map(|c| c.clip),
                 })

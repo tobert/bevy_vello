@@ -37,16 +37,13 @@ use crate::{
     render::{VelloUiRenderItem, VelloView},
 };
 
-/// Scale a Bevy UI clip rect (logical pixels) to a Vello kurbo rect (physical pixels).
-pub(crate) fn scale_clip(clip: Option<Rect>, pixel_scale: f32) -> Option<vello::kurbo::Rect> {
+/// Convert a Bevy UI clip rect to a Vello kurbo rect.
+///
+/// `CalculatedClip` is already in physical pixels — Bevy resolves layout
+/// against `physical_size` — matching the coordinate space of `PreparedAffine`.
+pub(crate) fn to_kurbo_clip(clip: Option<Rect>) -> Option<vello::kurbo::Rect> {
     clip.map(|r| {
-        let s = pixel_scale as f64;
-        vello::kurbo::Rect::new(
-            r.min.x as f64 * s,
-            r.min.y as f64 * s,
-            r.max.x as f64 * s,
-            r.max.y as f64 * s,
-        )
+        vello::kurbo::Rect::new(r.min.x as f64, r.min.y as f64, r.max.x as f64, r.max.y as f64)
     })
 }
 
@@ -136,12 +133,11 @@ pub fn sort_render_items(
         ));
     }
     for (&affine, scene) in view_ui_scenes.iter() {
-        let pixel_scale = scene.ui_render_target.scale_factor();
         ui_render_queue.push((
             scene.ui_node.stack_index,
             VelloUiRenderItem::Scene {
                 affine: *affine,
-                clip: scale_clip(scene.clip, pixel_scale),
+                clip: to_kurbo_clip(scene.clip),
                 item: scene.clone(),
             },
         ));
@@ -159,12 +155,11 @@ pub fn sort_render_items(
             ));
         }
         for (&affine, svg) in view_ui_svgs.iter() {
-            let pixel_scale = svg.ui_render_target.scale_factor();
             ui_render_queue.push((
                 svg.ui_node.stack_index,
                 VelloUiRenderItem::Svg {
                     affine: *affine,
-                    clip: scale_clip(svg.clip, pixel_scale),
+                    clip: to_kurbo_clip(svg.clip),
                     item: svg.clone(),
                 },
             ));
@@ -183,12 +178,11 @@ pub fn sort_render_items(
             ));
         }
         for (&affine, lottie) in view_ui_lotties.iter() {
-            let pixel_scale = lottie.ui_render_target.scale_factor();
             ui_render_queue.push((
                 lottie.ui_node.stack_index,
                 VelloUiRenderItem::Lottie {
                     affine: *affine,
-                    clip: scale_clip(lottie.clip, pixel_scale),
+                    clip: to_kurbo_clip(lottie.clip),
                     item: lottie.clone(),
                 },
             ));
@@ -207,12 +201,11 @@ pub fn sort_render_items(
             ));
         }
         for (&affine, text) in view_ui_text.iter() {
-            let pixel_scale = text.ui_render_target.scale_factor();
             ui_render_queue.push((
                 text.ui_node.stack_index,
                 VelloUiRenderItem::Text {
                     affine: *affine,
-                    clip: scale_clip(text.clip, pixel_scale),
+                    clip: to_kurbo_clip(text.clip),
                     item: text.clone(),
                 },
             ));

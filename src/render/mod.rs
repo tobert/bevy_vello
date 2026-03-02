@@ -198,7 +198,7 @@ pub(crate) enum VelloWorldRenderItem {
 pub(crate) enum VelloUiRenderItem {
     Scene {
         affine: Affine,
-        /// Pre-scaled clip rect in physical pixels (from CalculatedClip).
+        /// Clip rect in physical pixels (from CalculatedClip, already resolved).
         clip: Option<vello::kurbo::Rect>,
         item: crate::integrations::scene::render::ExtractedUiVelloScene,
     },
@@ -273,26 +273,38 @@ pub(crate) struct VelloFrameProfileData {
 mod tests {
     use super::*;
     use bevy::math::Rect;
-    use systems::scale_clip;
+    use systems::to_kurbo_clip;
 
-    /// Extracted structs carry Bevy Rect from CalculatedClip.
-    /// scale_clip converts to kurbo::Rect in physical pixel space.
-    /// VelloUiRenderItem stores the pre-scaled kurbo::Rect.
+    /// CalculatedClip is already in physical pixels (Bevy resolves layout
+    /// against `physical_size`). to_kurbo_clip converts the type without
+    /// scaling, matching PreparedAffine's output coordinate space.
     #[test]
-    fn extracted_clip_scales_to_kurbo_rect() {
+    fn clip_converts_to_kurbo_without_scaling() {
         let bevy_clip = Rect::new(10.0, 20.0, 100.0, 200.0);
-        let pixel_scale = 2.0;
-
-        let kurbo_clip = scale_clip(Some(bevy_clip), pixel_scale).unwrap();
-        assert_eq!(kurbo_clip.x0, 20.0);
-        assert_eq!(kurbo_clip.y0, 40.0);
-        assert_eq!(kurbo_clip.x1, 200.0);
-        assert_eq!(kurbo_clip.y1, 400.0);
+        let kurbo_clip = to_kurbo_clip(Some(bevy_clip)).unwrap();
+        assert_eq!(kurbo_clip.x0, 10.0);
+        assert_eq!(kurbo_clip.y0, 20.0);
+        assert_eq!(kurbo_clip.x1, 100.0);
+        assert_eq!(kurbo_clip.y1, 200.0);
     }
 
     #[test]
-    fn scale_clip_none_returns_none() {
-        assert!(scale_clip(None, 2.0).is_none());
+    fn clip_none_returns_none() {
+        assert!(to_kurbo_clip(None).is_none());
+    }
+
+    /// Regression: scaling the already-physical CalculatedClip by pixel_scale
+    /// shifts the clip rect away from content at DPI > 1, clipping everything.
+    #[test]
+    fn clip_rect_must_not_be_double_scaled() {
+        // Container centred at physical (960, 540), size (400, 300), 2× display.
+        let physical_clip = Rect::new(760.0, 390.0, 1160.0, 690.0);
+        let kurbo = to_kurbo_clip(Some(physical_clip)).unwrap();
+        assert_eq!(
+            kurbo,
+            vello::kurbo::Rect::new(760.0, 390.0, 1160.0, 690.0),
+            "clip rect must stay in physical-pixel space"
+        );
     }
 
     /// VelloUiRenderItem carries pre-scaled clip through to render_frame.
