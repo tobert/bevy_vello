@@ -307,6 +307,47 @@ mod tests {
         );
     }
 
+    /// Per-axis overflow clipping (e.g. Overflow::clip_y()) produces
+    /// CalculatedClip with f32::INFINITY on the unconstrained axis.
+    /// Vello can't rasterize a clip path with infinite coordinates, so
+    /// to_kurbo_clip must clamp them to finite values.
+    #[test]
+    fn clip_with_infinite_x_produces_finite_rect() {
+        // Simulates Overflow::clip_y() — X unconstrained, Y clipped to viewport.
+        let clip = Rect::new(f32::NEG_INFINITY, 35.0, f32::INFINITY, 772.0);
+        let kurbo = to_kurbo_clip(Some(clip));
+        let kurbo = kurbo.expect("infinite-x clip should still produce a rect");
+        assert!(kurbo.x0.is_finite(), "x0 must be finite, got {}", kurbo.x0);
+        assert!(kurbo.x1.is_finite(), "x1 must be finite, got {}", kurbo.x1);
+        assert_eq!(kurbo.y0, 35.0, "finite y0 must be preserved");
+        assert_eq!(kurbo.y1, 772.0, "finite y1 must be preserved");
+        assert!(
+            kurbo.x0 < kurbo.x1,
+            "clamped rect must have positive width"
+        );
+    }
+
+    /// NaN coordinates make the clip rect meaningless — should return None.
+    #[test]
+    fn clip_with_nan_returns_none() {
+        let clip = Rect::new(f32::NAN, 35.0, f32::NAN, 772.0);
+        assert!(
+            to_kurbo_clip(Some(clip)).is_none(),
+            "NaN clip should return None"
+        );
+    }
+
+    /// Mixed scenario: only min.x is infinite (per-axis clip edge case).
+    #[test]
+    fn clip_with_one_infinite_coord_produces_finite_rect() {
+        let clip = Rect::new(f32::NEG_INFINITY, 0.0, 1280.0, 800.0);
+        let kurbo = to_kurbo_clip(Some(clip)).expect("should produce a rect");
+        assert!(kurbo.x0.is_finite(), "x0 must be finite");
+        assert_eq!(kurbo.x1, 1280.0);
+        assert_eq!(kurbo.y0, 0.0);
+        assert_eq!(kurbo.y1, 800.0);
+    }
+
     /// VelloUiRenderItem carries pre-scaled clip through to render_frame.
     #[test]
     fn ui_render_item_preserves_clip_rect() {

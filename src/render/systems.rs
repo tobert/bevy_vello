@@ -41,9 +41,33 @@ use crate::{
 ///
 /// `CalculatedClip` is already in physical pixels — Bevy resolves layout
 /// against `physical_size` — matching the coordinate space of `PreparedAffine`.
+///
+/// Per-axis overflow clipping (e.g. `Overflow::clip_y()`) produces rects with
+/// `f32::INFINITY` / `f32::NEG_INFINITY` on the unconstrained axis. Vello
+/// can't rasterize a clip path with non-finite coordinates, so we clamp them.
+/// NaN coordinates indicate a meaningless rect and return `None`.
 pub(crate) fn to_kurbo_clip(clip: Option<Rect>) -> Option<vello::kurbo::Rect> {
-    clip.map(|r| {
-        vello::kurbo::Rect::new(r.min.x as f64, r.min.y as f64, r.max.x as f64, r.max.y as f64)
+    /// Generous bound that exceeds any real viewport while staying far from
+    /// floating-point precision limits. 1e7 ≈ 10 million pixels.
+    const CLIP_BOUND: f64 = 1e7;
+
+    clip.and_then(|r| {
+        let x0 = r.min.x as f64;
+        let y0 = r.min.y as f64;
+        let x1 = r.max.x as f64;
+        let y1 = r.max.y as f64;
+
+        // NaN makes the rect meaningless — skip clipping entirely.
+        if x0.is_nan() || y0.is_nan() || x1.is_nan() || y1.is_nan() {
+            return None;
+        }
+
+        Some(vello::kurbo::Rect::new(
+            x0.clamp(-CLIP_BOUND, CLIP_BOUND),
+            y0.clamp(-CLIP_BOUND, CLIP_BOUND),
+            x1.clamp(-CLIP_BOUND, CLIP_BOUND),
+            y1.clamp(-CLIP_BOUND, CLIP_BOUND),
+        ))
     })
 }
 
