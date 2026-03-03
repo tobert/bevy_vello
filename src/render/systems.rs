@@ -380,6 +380,7 @@ pub fn render_frame(
                         text.max_advance,
                         *text_anchor,
                         None, // world-space: no content box
+                        None, // world-space: no clip
                     );
                 }
             }
@@ -491,6 +492,7 @@ pub fn render_frame(
             #[cfg(feature = "text")]
             VelloUiRenderItem::Text {
                 affine,
+                clip,
                 item:
                     ExtractedUiVelloText {
                         text,
@@ -499,7 +501,6 @@ pub fn render_frame(
                         ui_render_target,
                         ..
                     },
-                ..
             } => {
                 if let Some(font) = font_render_assets.get(text.style.font.id()) {
                     // Convert physical pixels to logical pixels for anchor calculation
@@ -516,6 +517,7 @@ pub fn render_frame(
                         text.max_advance,
                         *text_anchor,
                         Some(logical_size),
+                        *clip,
                     );
                 }
             }
