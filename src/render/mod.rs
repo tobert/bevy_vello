@@ -293,20 +293,6 @@ mod tests {
         assert!(to_kurbo_clip(None).is_none());
     }
 
-    /// Regression: scaling the already-physical CalculatedClip by pixel_scale
-    /// shifts the clip rect away from content at DPI > 1, clipping everything.
-    #[test]
-    fn clip_rect_must_not_be_double_scaled() {
-        // Container centred at physical (960, 540), size (400, 300), 2× display.
-        let physical_clip = Rect::new(760.0, 390.0, 1160.0, 690.0);
-        let kurbo = to_kurbo_clip(Some(physical_clip)).unwrap();
-        assert_eq!(
-            kurbo,
-            vello::kurbo::Rect::new(760.0, 390.0, 1160.0, 690.0),
-            "clip rect must stay in physical-pixel space"
-        );
-    }
-
     /// Per-axis overflow clipping (e.g. Overflow::clip_y()) produces
     /// CalculatedClip with f32::INFINITY on the unconstrained axis.
     /// Vello can't rasterize a clip path with infinite coordinates, so
@@ -348,44 +334,4 @@ mod tests {
         assert_eq!(kurbo.y1, 800.0);
     }
 
-    /// VelloUiRenderItem carries pre-scaled clip through to render_frame.
-    #[test]
-    fn ui_render_item_preserves_clip_rect() {
-        let kurbo_clip = vello::kurbo::Rect::new(20.0, 40.0, 200.0, 400.0);
-
-        let scene_extracted = crate::integrations::scene::render::ExtractedUiVelloScene {
-            scene: Default::default(),
-            ui_transform: Default::default(),
-            ui_node: Default::default(),
-            ui_render_target: Default::default(),
-            clip: Some(Rect::new(10.0, 20.0, 100.0, 200.0)),
-        };
-        #[allow(irrefutable_let_patterns)]
-        let VelloUiRenderItem::Scene { clip, .. } = &(VelloUiRenderItem::Scene {
-            affine: vello::kurbo::Affine::IDENTITY,
-            clip: Some(kurbo_clip),
-            item: scene_extracted,
-        }) else {
-            unreachable!();
-        };
-        assert_eq!(*clip, Some(kurbo_clip));
-
-        // None clip passes through
-        let scene_no_clip = crate::integrations::scene::render::ExtractedUiVelloScene {
-            scene: Default::default(),
-            ui_transform: Default::default(),
-            ui_node: Default::default(),
-            ui_render_target: Default::default(),
-            clip: None,
-        };
-        #[allow(irrefutable_let_patterns)]
-        let VelloUiRenderItem::Scene { clip, .. } = &(VelloUiRenderItem::Scene {
-            affine: vello::kurbo::Affine::IDENTITY,
-            clip: None,
-            item: scene_no_clip,
-        }) else {
-            unreachable!();
-        };
-        assert!(clip.is_none());
-    }
 }

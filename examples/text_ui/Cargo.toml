@@ -8,4 +8,4 @@ publish = false
 
 [dependencies]
 bevy_vello = { path = "../../", features = ["text", "default_font"] }
-bevy = { workspace = true, features = ["bevy_gizmos", "bevy_ui_debug"] }
+bevy = { workspace = true, features = ["bevy_ui_debug"] }
