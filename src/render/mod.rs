@@ -356,4 +356,23 @@ mod tests {
         assert_eq!(kurbo.y1, 800.0);
     }
 
+    /// VelloRenderSettings must exist in the main world so that
+    /// `detect_vello_scene_changes` (which runs in PostUpdate) can access it.
+    /// Regression: the resource was only inserted into the render sub-app,
+    /// causing a panic on the first frame.
+    #[test]
+    fn render_settings_available_in_main_world() {
+        use crate::render::plugin::VelloRenderPlugin;
+
+        let mut app = App::new();
+        // MinimalPlugins gives us the scheduler without a window/GPU.
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::asset::AssetPlugin::default());
+        app.add_plugins(VelloRenderPlugin::default());
+
+        assert!(
+            app.world().get_resource::<VelloRenderSettings>().is_some(),
+            "VelloRenderSettings must be in the main world for detect_vello_scene_changes"
+        );
+    }
 }

@@ -227,13 +227,17 @@ pub fn prepare_text_affines(
                 // Note: We don't apply centering here because compute_ui_anchor_offset handles it
                 let raw_transform = model_matrix * pixel_scale_matrix;
                 let transform = raw_transform.to_cols_array();
+                // Snap translation to integer pixels so content aligns with
+                // the integer-snapped clip rect from to_kurbo_clip(). Using
+                // floor() avoids oscillation at .5 boundaries where round()
+                // would flip between N and N+1 during scroll interpolation.
                 [
                     transform[0] as f64,  // a // scale_x
                     transform[1] as f64,  // b // skew_y
                     transform[4] as f64,  // c // skew_x
                     transform[5] as f64,  // d // scale_y
-                    transform[12] as f64, // e // translate_x
-                    transform[13] as f64, // f // translate_y
+                    (transform[12] as f64).floor(), // e // translate_x
+                    (transform[13] as f64).floor(), // f // translate_y
                 ]
             };
 

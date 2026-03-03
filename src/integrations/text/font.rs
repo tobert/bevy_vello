@@ -202,8 +202,12 @@ impl VelloFont {
             compute_world_anchor_offset(text_anchor, text_w, text_h)
         };
 
-        // Apply offset in physical space (after scaling)
-        transform = transform.then_translate(vello::kurbo::Vec2::new(dx, dy));
+        // Apply offset in physical space (after scaling).
+        // Floor to integer pixels so the final position stays pixel-aligned
+        // even after the anchor offset (which can be fractional from
+        // node_size/2 or text_size/2 calculations). floor() matches the
+        // prepare step and avoids .5-boundary oscillation during scroll.
+        transform = transform.then_translate(vello::kurbo::Vec2::new(dx.floor(), dy.floor()));
 
         // Precompute clip range in layout (logical) space for glyph-run culling.
         // The affine maps layout coords → physical screen space. Inverting lets us

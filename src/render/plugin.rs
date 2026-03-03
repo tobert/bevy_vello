@@ -45,7 +45,10 @@ impl Plugin for VelloRenderPlugin {
         app.add_plugins(VelloRenderDiagnosticsPlugin);
 
         // Dirty tracking resources in main world
-        app.init_resource::<VelloSceneDirty>()
+        // VelloRenderSettings must be in the main world because
+        // detect_vello_scene_changes reads it (runs in PostUpdate).
+        app.insert_resource(self.render_settings.clone())
+            .init_resource::<VelloSceneDirty>()
             .init_resource::<VelloFontChanged>()
             .add_systems(
                 PostUpdate,
