@@ -122,7 +122,7 @@ pub fn extract_ui_text(
         render_layers,
         ui_node,
         ui_render_target,
-        calculated_clip,
+        calc_clip,
     ) in query_scenes.iter()
     {
         // Skip if visibility conditions are not met.
@@ -141,13 +141,6 @@ pub fn extract_ui_text(
         if views.iter().any(|(_, camera_layers)| {
             asset_render_layers.intersects(camera_layers.unwrap_or_default())
         }) {
-            tracing::info!(
-                "Extracting UI text '{}' at pos=({:.1}, {:.1}), clip={:?}",
-                text.value,
-                ui_transform.translation.x,
-                ui_transform.translation.y,
-                calculated_clip.map(|c| (c.clip.min, c.clip.max))
-            );
             commands
                 .spawn(ExtractedUiVelloText {
                     text: text.clone(),
@@ -155,7 +148,7 @@ pub fn extract_ui_text(
                     ui_transform: *ui_transform,
                     ui_node: *ui_node,
                     ui_render_target: *ui_render_target,
-                    clip: calculated_clip.map(|c| c.clip),
+                    clip: calc_clip.map(|c| c.clip),
                 })
                 .insert(TemporaryRenderEntity);
             n_texts += 1;
