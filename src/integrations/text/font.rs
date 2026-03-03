@@ -169,23 +169,13 @@ impl VelloFont {
             let scale_y = transform.as_coeffs()[3];
             let physical_offset = (offset.0 * scale_x, offset.1 * scale_y);
 
-            tracing::info!(
-                "UI text '{}': text_size=({:.1}, {:.1}), content_box=({:.1}, {:.1}), offset=({:.1}, {:.1}), scale=({:.2}, {:.2}), physical_offset=({:.1}, {:.1})",
-                value, text_w, text_h, content_size.x, content_size.y, offset.0, offset.1, scale_x, scale_y, physical_offset.0, physical_offset.1
-            );
             physical_offset
         } else {
             compute_world_anchor_offset(text_anchor, text_w, text_h)
         };
 
         // Apply offset in physical space (after scaling)
-        let final_transform = transform.then_translate(vello::kurbo::Vec2::new(dx, dy));
-        tracing::info!(
-            "Text '{}': before={:?}, after translate({:.1}, {:.1}): {:?}",
-            value, transform, dx, dy, final_transform
-        );
-
-        transform = final_transform;
+        transform = transform.then_translate(vello::kurbo::Vec2::new(dx, dy));
 
         for line in layout.lines() {
             for item in line.items() {

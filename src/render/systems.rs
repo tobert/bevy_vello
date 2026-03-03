@@ -62,11 +62,14 @@ pub(crate) fn to_kurbo_clip(clip: Option<Rect>) -> Option<vello::kurbo::Rect> {
             return None;
         }
 
+        // Snap to integer pixel boundaries: floor min, ceil max.
+        // Sub-pixel clip edges cause Vello to antialias the clip boundary,
+        // producing visible glitch lines where content partially leaks through.
         Some(vello::kurbo::Rect::new(
-            x0.clamp(-CLIP_BOUND, CLIP_BOUND),
-            y0.clamp(-CLIP_BOUND, CLIP_BOUND),
-            x1.clamp(-CLIP_BOUND, CLIP_BOUND),
-            y1.clamp(-CLIP_BOUND, CLIP_BOUND),
+            x0.clamp(-CLIP_BOUND, CLIP_BOUND).floor(),
+            y0.clamp(-CLIP_BOUND, CLIP_BOUND).floor(),
+            x1.clamp(-CLIP_BOUND, CLIP_BOUND).ceil(),
+            y1.clamp(-CLIP_BOUND, CLIP_BOUND).ceil(),
         ))
     })
 }
@@ -242,7 +245,9 @@ pub fn sort_render_items(
             .partial_cmp(b_z_index)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    ui_render_queue.sort_unstable_by(|(a_stack_index, _), (b_stack_index, _)| {
+    // Stable sort preserves insertion order for same-stack-index items,
+    // preventing scene/text render order from flipping between frames.
+    ui_render_queue.sort_by(|(a_stack_index, _), (b_stack_index, _)| {
         a_stack_index
             .partial_cmp(b_stack_index)
             .unwrap_or(std::cmp::Ordering::Equal)
