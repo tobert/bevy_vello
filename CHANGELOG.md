@@ -19,6 +19,7 @@ This release supports Bevy version 0.18 and has an [MSRV][] of 1.87.
 
 - UI clip rect support: `CalculatedClip` is now respected for all UI Vello render types (`UiVelloScene`, `UiVelloSvg`, `UiVelloLottie`, `UiVelloText`), enabling proper overflow clipping.
 - Added `GLYPH_COUNT` and `GLYPH_RUN_COUNT` diagnostics per frame when the `text` feature is active.
+- `load_svg_from_str_with_options` and `load_svg_from_bytes_with_options` accept caller-provided `usvg::Options`, allowing SVG `<text>` to be rendered when a populated `fontdb` is supplied. `vello_svg::usvg` is re-exported from `integrations::svg` for caller convenience.
 
 ### Changed
 

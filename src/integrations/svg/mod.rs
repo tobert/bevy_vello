@@ -7,7 +7,15 @@ mod asset;
 pub use asset::VelloSvg;
 
 mod parse;
-pub use parse::{load_svg_from_bytes, load_svg_from_str};
+pub use parse::{
+    load_svg_from_bytes, load_svg_from_bytes_with_options, load_svg_from_str,
+    load_svg_from_str_with_options,
+};
+
+/// Re-export `vello_svg::usvg` so callers can build a custom `Options`
+/// (e.g. one with a populated `fontdb::Database` for SVG `<text>`) without
+/// taking a direct dependency on `vello_svg` or `usvg`.
+pub use vello_svg::usvg;
 
 mod plugin;
 pub(crate) use plugin::SvgIntegrationPlugin;
