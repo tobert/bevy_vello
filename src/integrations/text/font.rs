@@ -96,7 +96,7 @@ impl VelloFont {
         text_align: VelloTextAlign,
         max_advance: Option<f32>,
         text_anchor: VelloTextAnchor,
-        ui_content: Option<Vec2>,
+        ui_content_box: Option<Rect>,
         clip: Option<vello::kurbo::Rect>,
     ) {
         let layout = self.layout(value, style, text_align, max_advance);
@@ -104,14 +104,8 @@ impl VelloFont {
         let text_w = layout.width() as f64;
         let text_h = layout.height() as f64;
 
-        let (dx, dy) = if let Some(content_size) = ui_content {
-            let offset = compute_ui_anchor_offset(
-                text_anchor,
-                text_w,
-                text_h,
-                content_size.x,
-                content_size.y,
-            );
+        let (dx, dy) = if let Some(content_box) = ui_content_box {
+            let offset = compute_ui_anchor_offset(text_anchor, text_w, text_h, content_box);
             // Transform the logical offset through the linear part of the affine
             // (rotation + scale), so anchor positioning is correct under any transform.
             let c = transform.as_coeffs();
@@ -362,31 +356,32 @@ pub(crate) fn compute_world_anchor_offset(
 
 /// Computes the (dx, dy) translation offset for UI text anchoring.
 ///
-/// Aligns text within the node's content box. The UiGlobalTransform places the
-/// origin at the node's center, so we compute offsets relative to that center
-/// to position text according to the anchor.
+/// Aligns text within the node's content box (the region inside the node's
+/// border and padding, as reported by `ComputedNode::content_box`). The
+/// UiGlobalTransform places the origin at the node's center, and the content
+/// box is in object-centered coordinates, so anchor offsets are computed
+/// against the content-box rect directly.
 pub(crate) fn compute_ui_anchor_offset(
     text_anchor: VelloTextAnchor,
     text_w: f64,
     text_h: f64,
-    node_w: f32,
-    node_h: f32,
+    content_box: Rect,
 ) -> (f64, f64) {
-    let node_w = node_w as f64;
-    let node_h = node_h as f64;
-    let top_left_x = -node_w / 2.0;
-    let top_left_y = -node_h / 2.0;
+    let cb_w = content_box.width() as f64;
+    let cb_h = content_box.height() as f64;
+    let top_left_x = content_box.min.x as f64;
+    let top_left_y = content_box.min.y as f64;
 
     let (anchor_x, anchor_y) = match text_anchor {
         VelloTextAnchor::TopLeft => (0.0, 0.0),
-        VelloTextAnchor::Top => ((node_w - text_w) / 2.0, 0.0),
-        VelloTextAnchor::TopRight => (node_w - text_w, 0.0),
-        VelloTextAnchor::Left => (0.0, (node_h - text_h) / 2.0),
-        VelloTextAnchor::Center => ((node_w - text_w) / 2.0, (node_h - text_h) / 2.0),
-        VelloTextAnchor::Right => (node_w - text_w, (node_h - text_h) / 2.0),
-        VelloTextAnchor::BottomLeft => (0.0, node_h - text_h),
-        VelloTextAnchor::Bottom => ((node_w - text_w) / 2.0, node_h - text_h),
-        VelloTextAnchor::BottomRight => (node_w - text_w, node_h - text_h),
+        VelloTextAnchor::Top => ((cb_w - text_w) / 2.0, 0.0),
+        VelloTextAnchor::TopRight => (cb_w - text_w, 0.0),
+        VelloTextAnchor::Left => (0.0, (cb_h - text_h) / 2.0),
+        VelloTextAnchor::Center => ((cb_w - text_w) / 2.0, (cb_h - text_h) / 2.0),
+        VelloTextAnchor::Right => (cb_w - text_w, (cb_h - text_h) / 2.0),
+        VelloTextAnchor::BottomLeft => (0.0, cb_h - text_h),
+        VelloTextAnchor::Bottom => ((cb_w - text_w) / 2.0, cb_h - text_h),
+        VelloTextAnchor::BottomRight => (cb_w - text_w, cb_h - text_h),
     };
 
     (top_left_x + anchor_x, top_left_y + anchor_y)
@@ -418,10 +413,11 @@ mod tests {
 
     // --- UI text ---
     // Anchor positions text within the node's content box.
-    // Transform origin is at the node's CENTER (UiGlobalTransform origin).
+    // Transform origin is at the node's CENTER (UiGlobalTransform origin), and
+    // the content box is in object-centered coords.
     //
-    // Given: node 400x200, text 200x40
-    // Top-left corner is at (-200, -100) from center
+    // Given: node 400x200 with no padding/border, text 200x40
+    // → content_box: min=(-200,-100), max=(200,100)
     //
     // TopLeft:     (-200, -100)
     // Center:      (-100, -20)
@@ -432,67 +428,164 @@ mod tests {
     const TEXT_W: f64 = 200.0;
     const TEXT_H: f64 = 40.0;
 
+    fn full_node_content_box() -> Rect {
+        Rect::from_center_size(Vec2::ZERO, Vec2::new(NODE_W, NODE_H))
+    }
+
     #[test]
     fn ui_top_left_positions_at_node_top_left() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::TopLeft, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::TopLeft,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (-200.0, -100.0));
     }
 
     #[test]
     fn ui_center_centers_text_in_node() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::Center, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::Center,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (-100.0, -20.0));
     }
 
     #[test]
     fn ui_bottom_right_positions_at_node_bottom_right() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::BottomRight, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::BottomRight,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (0.0, 60.0));
     }
 
     #[test]
     fn ui_left_vertically_centers_at_left_edge() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::Left, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::Left,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (-200.0, -20.0));
     }
 
     #[test]
     fn ui_top_right_positions_at_node_top_right() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::TopRight, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::TopRight,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (0.0, -100.0));
     }
 
     #[test]
     fn ui_bottom_centers_at_bottom_edge() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::Bottom, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::Bottom,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (-100.0, 60.0));
     }
 
     #[test]
     fn ui_top_centers_at_top_edge() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::Top, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::Top,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (-100.0, -100.0));
     }
 
     #[test]
     fn ui_right_vertically_centers_at_right_edge() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::Right, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::Right,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (0.0, -20.0));
     }
 
     #[test]
     fn ui_bottom_left_positions_at_node_bottom_left() {
-        let (dx, dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::BottomLeft, TEXT_W, TEXT_H, NODE_W, NODE_H);
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::BottomLeft,
+            TEXT_W,
+            TEXT_H,
+            full_node_content_box(),
+        );
         assert_eq!((dx, dy), (-200.0, 60.0));
+    }
+
+    // --- Padding-aware anchoring ---
+    // For a 400x200 node with 10px symmetric padding, content_box has
+    // min=(-190,-90), max=(190,90), width=380, height=180.
+
+    fn padded_content_box() -> Rect {
+        Rect::from_corners(Vec2::new(-190.0, -90.0), Vec2::new(190.0, 90.0))
+    }
+
+    #[test]
+    fn ui_top_left_respects_padding() {
+        // Without padding: text top-left lands at the border-box corner (-200, -100).
+        // With 10px padding: it lands at the content-box corner (-190, -90).
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::TopLeft,
+            TEXT_W,
+            TEXT_H,
+            padded_content_box(),
+        );
+        assert_eq!((dx, dy), (-190.0, -90.0));
+    }
+
+    #[test]
+    fn ui_center_respects_padding() {
+        // Symmetric padding keeps the content-box centered on the node center,
+        // so Center anchor is unchanged: text centered around the origin.
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::Center,
+            TEXT_W,
+            TEXT_H,
+            padded_content_box(),
+        );
+        assert_eq!((dx, dy), (-100.0, -20.0));
+    }
+
+    #[test]
+    fn ui_bottom_right_respects_padding() {
+        let (dx, dy) = compute_ui_anchor_offset(
+            VelloTextAnchor::BottomRight,
+            TEXT_W,
+            TEXT_H,
+            padded_content_box(),
+        );
+        assert_eq!((dx, dy), (-10.0, 50.0));
+    }
+
+    #[test]
+    fn ui_asymmetric_padding_shifts_center() {
+        // Asymmetric content_box: padding-left=20, padding-right=0,
+        // padding-top=0, padding-bottom=0 on a 400x200 node →
+        // content_box min=(-180,-100), max=(200,100), width=380, height=200.
+        let cb = Rect::from_corners(Vec2::new(-180.0, -100.0), Vec2::new(200.0, 100.0));
+        let (dx, dy) = compute_ui_anchor_offset(VelloTextAnchor::Center, TEXT_W, TEXT_H, cb);
+        // Content-box center is at x = (-180+200)/2 = 10. Text centered around it
+        // is offset by (10 - text_w/2, 0 - text_h/2) = (-90, -20).
+        assert_eq!((dx, dy), (-90.0, -20.0));
     }
 
     /// The full UI anchor pipeline — compute logical offset, transform through
@@ -504,9 +597,10 @@ mod tests {
         // Affine for a UI node at (250, 150) logical on a 2x display.
         let affine = Affine::new([scale, 0.0, 0.0, scale, 500.0, 300.0]);
 
-        // Node is 200x100 logical, text is 100x20.
+        // Node is 200x100 logical, text is 100x20, no padding.
         // Center anchor: offset = (-50, -10) logical.
-        let offset = compute_ui_anchor_offset(VelloTextAnchor::Center, 100.0, 20.0, 200.0, 100.0);
+        let cb = Rect::from_center_size(Vec2::ZERO, Vec2::new(200.0, 100.0));
+        let offset = compute_ui_anchor_offset(VelloTextAnchor::Center, 100.0, 20.0, cb);
 
         // Apply linear part of affine to offset — same path as render().
         let c = affine.as_coeffs();
@@ -539,9 +633,10 @@ mod tests {
             300.0,
         ]);
 
-        // Node is 200x100 logical, text is 100x20.
+        // Node is 200x100 logical, text is 100x20, no padding.
         // Center anchor: offset = (-50, -10) logical.
-        let offset = compute_ui_anchor_offset(VelloTextAnchor::Center, 100.0, 20.0, 200.0, 100.0);
+        let cb = Rect::from_center_size(Vec2::ZERO, Vec2::new(200.0, 100.0));
+        let offset = compute_ui_anchor_offset(VelloTextAnchor::Center, 100.0, 20.0, cb);
 
         // Apply linear part of affine to offset — same path as render().
         let c = affine.as_coeffs();
@@ -559,12 +654,12 @@ mod tests {
 
     #[test]
     fn ui_center_is_origin_when_text_fills_node() {
-        let (ui_dx, ui_dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::Center, 400.0, 200.0, 400.0, 200.0);
+        let cb = Rect::from_center_size(Vec2::ZERO, Vec2::new(400.0, 200.0));
+        let (ui_dx, ui_dy) = compute_ui_anchor_offset(VelloTextAnchor::Center, 400.0, 200.0, cb);
         assert_eq!((ui_dx, ui_dy), (-200.0, -100.0));
 
         let (ui_tl_dx, ui_tl_dy) =
-            compute_ui_anchor_offset(VelloTextAnchor::TopLeft, 400.0, 200.0, 400.0, 200.0);
+            compute_ui_anchor_offset(VelloTextAnchor::TopLeft, 400.0, 200.0, cb);
         assert_eq!((ui_tl_dx, ui_tl_dy), (-200.0, -100.0));
 
         let (w_dx, w_dy) = compute_world_anchor_offset(VelloTextAnchor::TopLeft, 400.0, 200.0);

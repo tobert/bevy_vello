@@ -28,6 +28,7 @@ This release supports Bevy version 0.18 and has an [MSRV][] of 1.87.
 
 - `VelloTextAnchor` for UI text (`UiVelloText`) now positions within the node's content box instead of using text layout dimensions. All anchors except `Center` were previously incorrect.
 - UI text is now clipped according to UI node content size correctly.
+- UI text now respects `Node::padding` and `Node::border`. Anchors previously positioned text against the border-box, ignoring inset; with symmetric padding `Center` happened to look right while `TopLeft`/`BottomRight` overlapped the chrome, and asymmetric padding shifted all anchors off-axis.
 
 ## [0.13.1] - 2026-01-29
 

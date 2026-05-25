@@ -500,7 +500,16 @@ pub fn render_frame(
                     },
             } => {
                 if let Some(font) = font_render_assets.get(text.style.font.id()) {
-                    let logical_size = ui_node.size() / ui_render_target.scale_factor();
+                    // ComputedNode reports the content box in object-centered physical px.
+                    // Scale to logical px (matching parley's text metrics) and pass it so
+                    // anchor positioning respects `padding` and `border` instead of
+                    // aligning to the border-box.
+                    let scale = ui_render_target.scale_factor();
+                    let content_box_phys = ui_node.content_box();
+                    let logical_content_box = bevy::math::Rect::from_corners(
+                        content_box_phys.min / scale,
+                        content_box_phys.max / scale,
+                    );
                     font.render(
                         &mut scene_buffer,
                         *affine,
@@ -509,7 +518,7 @@ pub fn render_frame(
                         text.text_align,
                         text.max_advance,
                         *text_anchor,
-                        Some(logical_size),
+                        Some(logical_content_box),
                         *clip,
                     );
                 }
