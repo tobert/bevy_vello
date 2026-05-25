@@ -18,6 +18,8 @@ use bevy::{
     ui::ContentSize,
 };
 
+pub use parley::OverflowWrap;
+
 #[derive(Component, Default, Clone)]
 #[require(Aabb, VelloTextAnchor, Transform, Visibility, VisibilityClass)]
 #[cfg_attr(feature = "picking", require(Pickable))]
@@ -51,6 +53,16 @@ pub struct VelloTextStyle {
     /// Extra spacing between letters.
     pub letter_spacing: f32,
     pub font_axes: VelloFontAxes,
+    /// How to break lines when a single word is wider than `max_advance`.
+    ///
+    /// * `Normal` (default) — only break at word boundaries; an overlong word
+    ///   overflows the line box.
+    /// * `BreakWord` — when no word boundary fits, break inside a word at the
+    ///   nearest character boundary.
+    /// * `Anywhere` — like `BreakWord`, but the min-content width is the
+    ///   width of the narrowest character rather than the longest word
+    ///   (relevant for layout sizing in container contexts).
+    pub overflow_wrap: OverflowWrap,
 }
 
 impl Default for VelloTextStyle {
@@ -63,6 +75,7 @@ impl Default for VelloTextStyle {
             word_spacing: 0.0,
             letter_spacing: 0.0,
             font_axes: Default::default(),
+            overflow_wrap: OverflowWrap::default(),
         }
     }
 }

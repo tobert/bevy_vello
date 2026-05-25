@@ -223,6 +223,7 @@ fn apply_font_styles(builder: &mut RangedBuilder<'_, Brush>, style: &VelloTextSt
     ));
     builder.push_default(StyleProperty::WordSpacing(style.word_spacing));
     builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
+    builder.push_default(StyleProperty::OverflowWrap(style.overflow_wrap));
 }
 
 /// Applies the variable axes to the text
@@ -395,6 +396,7 @@ pub(crate) fn compute_ui_anchor_offset(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::integrations::text::OverflowWrap;
 
     // --- World-space text ---
 
@@ -569,5 +571,42 @@ mod tests {
 
         let (w_dx, w_dy) = compute_world_anchor_offset(VelloTextAnchor::TopLeft, 400.0, 200.0);
         assert_eq!((w_dx, w_dy), (0.0, 0.0));
+    }
+
+    // --- OverflowWrap ---
+
+    /// `OverflowWrap::BreakWord` must allow Parley to split a single word
+    /// that exceeds `max_advance` across multiple lines. `OverflowWrap::Normal`
+    /// leaves the same word on a single overflowing line.
+    #[test]
+    fn overflow_wrap_break_word_splits_long_word() {
+        // DejaVuSans is bundled with the crate's examples and has wide enough
+        // glyph coverage that the layout is deterministic across platforms.
+        let bytes = include_bytes!("../../../examples/assets/DejaVuSans.ttf").to_vec();
+        let font = crate::integrations::text::font_loader::load_into_font_context(bytes);
+
+        let long_word = "supercalifragilisticexpialidocious";
+        let max_advance = Some(50.0_f32);
+
+        let mut style = VelloTextStyle {
+            font_size: 16.0,
+            ..Default::default()
+        };
+
+        style.overflow_wrap = OverflowWrap::Normal;
+        let layout_normal = font.layout(long_word, &style, VelloTextAlign::default(), max_advance);
+        assert_eq!(
+            layout_normal.lines().count(),
+            1,
+            "Normal: no word boundary fits, so the whole word stays on one overflowing line",
+        );
+
+        style.overflow_wrap = OverflowWrap::BreakWord;
+        let layout_break = font.layout(long_word, &style, VelloTextAlign::default(), max_advance);
+        assert!(
+            layout_break.lines().count() > 1,
+            "BreakWord: the long word must be split across multiple lines, got {} line(s)",
+            layout_break.lines().count(),
+        );
     }
 }
